@@ -1,12 +1,16 @@
 module JsonWebToken
     exposing
-        ( DecodeError(..)
+        ( Alg
+        , DecodeError(..)
         , Secret
         , Token
+        , algDecoder
         , decode
         , encode
-        , hmacSha1
+        , hmacSha224
         , hmacSha256
+        , hmacSha384
+        , hmacSha512
         )
 
 {-| JSON Web Token encoder and decoder.
@@ -30,7 +34,7 @@ Examples below assume the following imports
 
 ## Algorithms
 
-@docs hmacSha1, hmacSha256
+@docs hmacSha224, hmacSha256, hmacSha384, hmacSha512
 
 
 ## Errors
@@ -38,39 +42,56 @@ Examples below assume the following imports
 @docs DecodeError
 
 
-## Type Aliases
+## Types
 
-@docs Secret, Token
+@docs Alg, Secret, Token, algDecoder
 
 -}
 
-import Bytes exposing (Bytes)
-import Json.Decode exposing (Decoder, decodeString)
-import Json.Encode
+import Crypto.HMAC
+import Json.Decode as Decode exposing (Decoder, decodeString)
+import Json.Decode.Pipeline as Pipeline exposing (required)
+import Json.Encode as Encode
 import JsonWebToken.Base64 as Base64
 import JsonWebToken.HMAC as HMAC exposing (HashType(..))
-import JsonWebToken.Header as Header exposing (Alg(..), Header)
 
 
 {-| Verify a token given a secret or public key.
 
+If all goes well, you'll get a result back with the payload.
+
     decode payloadDecoder correctSecret aValidToken
     --> Ok payload
 
-    decode payloadDecoder wrongSecret aValidToken
-    --> Err <| InvalidSecret payload
+If something goes wrong, you get an error:
 
     decode payloadDecoder correctSecret "token.should.have.three.parts"
     --> Err InvalidToken
 
+Some errors will include the payload. However, whenever there is an error the
+payload should not be trusted.
+
+    decode payloadDecoder wrongSecret aValidToken
+    --> Err <| InvalidSecret payload
+
 -}
-decode : Decoder a -> Secret -> Token -> Result (DecodeError a) a
+decode :
+    Decoder payload
+    -> Secret
+    -> Token
+    -> Result (DecodeError payload) payload
 decode payloadDecoder secret token =
     case String.split "." token of
         [ part0, part1, signVar ] ->
-            decodeHeaderPayload payloadDecoder part0 part1
-                |> Result.andThen
-                    (verify secret signVar (part0 ++ "." ++ part1))
+            case decodePayload payloadDecoder part1 of
+                Ok payload ->
+                    decodeHeader part0
+                        |> Result.mapError (DecodeHeaderFailed payload)
+                        |> Result.andThen
+                            (verify secret signVar payload <| part0 ++ "." ++ part1)
+
+                Err err ->
+                    Err <| DecodePayloadFailed err
 
         _ ->
             Err InvalidToken
@@ -79,112 +100,129 @@ decode payloadDecoder secret token =
 {-| Create and sign a token.
 
     encode hmacSha256 encodePayload correctSecret payload
-    --> Ok aValidToken
+    --> aValidToken
 
-    encode hmacSha256 Json.Encode.string "other secret" "some payload"
-        |> Result.mapError UnexpectedError
-        |> Result.andThen (decode Json.Decode.string "other secret")
+    encode hmacSha512 Json.Encode.string "other secret" "some payload"
+        |> (decode Json.Decode.string "other secret")
     --> Ok "some payload"
 
-    encode hmacSha256 Json.Encode.int "123" 456
-        |> Result.mapError UnexpectedError
-        |> Result.andThen (decode Json.Decode.int "abc")
+    encode hmacSha224 Json.Encode.int "123" 456
+        |> (decode Json.Decode.int "abc")
     --> Err <| InvalidSecret 456
 
 -}
-encode : Alg -> (a -> Json.Encode.Value) -> Secret -> a -> Result String Token
+encode :
+    Alg
+    -> (payload -> Encode.Value)
+    -> Secret
+    -> payload
+    -> Token
 encode (HMAC hashType) payloadEncoder secret payload =
     let
         header =
-            Header.encode (HMAC SHA256)
-                |> Json.Encode.encode 0
+            encodeHeader (HMAC hashType)
+                |> Encode.encode 0
                 |> Base64.encode
 
         data =
             payloadEncoder payload
-                |> Json.Encode.encode 0
+                |> Encode.encode 0
                 |> Base64.encode
     in
     sign hashType secret (header ++ "." ++ data)
-        |> Result.map
-            (\digest ->
+        |> (\digest ->
                 [ header
                 , data
                 , digest
                 ]
                     |> String.join "."
-            )
+           )
 
 
-verify : Secret -> String -> String -> ( Header, a ) -> Result (DecodeError a) a
-verify key signVar input ( { alg }, payload ) =
+verify :
+    Secret
+    -> String
+    -> payload
+    -> String
+    -> Header
+    -> Result (DecodeError payload) payload
+verify key signVar payload input { alg } =
     case alg of
         HMAC hash ->
             sign hash key input
-                |> Result.mapError UnexpectedError
-                |> Result.andThen
-                    (\actual ->
+                |> (\actual ->
                         if actual == signVar then
                             Ok payload
                         else
                             Err <| InvalidSecret payload
-                    )
+                   )
 
 
 
 -- ALGORITHMS
 
 
-{-| HMAC SHA1 digest algorithm
+{-| HMAC SHA224 digest algorithm.
 -}
-hmacSha1 : Alg
-hmacSha1 =
-    HMAC SHA1
+hmacSha224 : Alg
+hmacSha224 =
+    HMAC SHA224
 
 
-{-| HMAC SHA256 digest algorithm
+{-| HMAC SHA256 digest algorithm.
 -}
 hmacSha256 : Alg
 hmacSha256 =
     HMAC SHA256
 
 
+{-| HMAC SHA384 digest algorithm.
+-}
+hmacSha384 : Alg
+hmacSha384 =
+    HMAC SHA384
+
+
+{-| HMAC SHA512 digest algorithm.
+-}
+hmacSha512 : Alg
+hmacSha512 =
+    HMAC SHA512
+
+
 
 -- ERROR
 
 
-{-| Types of errors which can occur
+{-| Types of errors which can occur during decoding of a token.
 -}
-type DecodeError a
-    = DecodeHeaderFailed String
+type DecodeError payload
+    = DecodeHeaderFailed payload String
     | DecodePayloadFailed String
-    | InvalidSecret a
+    | InvalidSecret payload
     | InvalidToken
-    | UnexpectedError String
 
 
 
 -- HELPERS
 
 
-decodeHeaderPayload : Decoder a -> String -> String -> Result (DecodeError a) ( Header, a )
-decodeHeaderPayload payloadDecoder header payload =
-    Result.map2 (,)
-        (Base64.decode header
-            |> Result.andThen (decodeString Header.decoder)
-            |> Result.mapError DecodeHeaderFailed
-        )
-        (Base64.decode payload
-            |> Result.andThen (decodeString payloadDecoder)
-            |> Result.mapError DecodePayloadFailed
-        )
+decodeHeader : String -> Result String Header
+decodeHeader header =
+    Base64.decode header
+        |> Result.andThen (decodeString headerDecoder)
 
 
-sign : HMAC.HashType -> Secret -> String -> Result String String
-sign hashType key =
-    Bytes.fromUTF8
-        >> HMAC.hash hashType (Bytes.fromUTF8 key)
-        >> Result.map Base64.encodeHex
+decodePayload : Decoder payload -> String -> Result String payload
+decodePayload payloadDecoder payload =
+    Base64.decode payload
+        |> Result.andThen (decodeString payloadDecoder)
+
+
+sign : HMAC.HashType -> Secret -> String -> String
+sign hashType key message =
+    Crypto.HMAC.digest (HMAC.hash hashType) key message
+        |> Base64.encodeHex
 
 
 
@@ -205,3 +243,69 @@ type alias Token =
 -}
 type alias Secret =
     String
+
+
+
+-- HEADER
+
+
+type alias Header =
+    { typ : Typ
+    , alg : Alg
+    }
+
+
+{-| Type of algoirthm to use for the digest
+-}
+type Alg
+    = HMAC HMAC.HashType
+
+
+type Typ
+    = JWT
+
+
+
+-- ENCODERS
+
+
+encodeHeader : Alg -> Encode.Value
+encodeHeader (HMAC hashType) =
+    Encode.object
+        [ ( "alg", HMAC.encodeHashType hashType )
+        , ( "typ", Encode.string "JWT" )
+        ]
+
+
+
+-- DECODERS
+
+
+headerDecoder : Decoder Header
+headerDecoder =
+    Pipeline.decode Header
+        |> required "typ" typDecoder
+        |> required "alg" algDecoder
+
+
+{-| Algorithm decoder.
+-}
+algDecoder : Decoder Alg
+algDecoder =
+    Decode.oneOf
+        [ Decode.string
+            |> Decode.andThen HMAC.hashTypeDecoder
+            |> Decode.map HMAC
+        ]
+
+
+typDecoder : Decoder Typ
+typDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\w ->
+                if w == "JWT" then
+                    Decode.succeed JWT
+                else
+                    Decode.fail "typ is not JWT"
+            )

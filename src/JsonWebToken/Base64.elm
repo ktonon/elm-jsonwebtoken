@@ -1,16 +1,17 @@
 module JsonWebToken.Base64 exposing (decode, encode, encodeHex)
 
 import Base64
-import Bytes exposing (Bytes)
 import Regex exposing (Regex)
+import String.UTF8 as UTF8
 import UrlBase64
+import Word.Bytes as Bytes
+import Word.Hex as Hex
 
 
 encode : String -> String
 encode =
     urlEncode
         (Bytes.fromUTF8
-            >> Bytes.toList
             >> Base64.encode
         )
 
@@ -18,8 +19,7 @@ encode =
 encodeHex : String -> String
 encodeHex =
     urlEncode
-        (Bytes.fromHex
-            >> Bytes.toList
+        (Hex.toByteList
             >> Base64.encode
         )
 
@@ -27,12 +27,7 @@ encodeHex =
 decode : String -> Result String String
 decode =
     UrlBase64.decode
-        (Base64.decode >> Result.andThen listToString)
-
-
-listToString : List Int -> Result String String
-listToString =
-    Bytes.fromList >> Result.map Bytes.toString
+        (Base64.decode >> Result.andThen UTF8.toString)
 
 
 
