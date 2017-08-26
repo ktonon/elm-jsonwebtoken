@@ -1,6 +1,6 @@
 {
-    "version": "1.0.0",
-    "summary": "JSON Web Token encoder and decoder",
+    "version": "1.0.1",
+    "summary": "JSON Web Token encoder and decoder (JWT)",
     "repository": "https://github.com/ktonon/elm-jsonwebtoken.git",
     "license": "MIT",
     "source-directories": [
