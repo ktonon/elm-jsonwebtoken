@@ -1,5 +1,6 @@
 # elm-jsonwebtoken
 
+[![elm-package](https://img.shields.io/badge/elm-1.0.0-blue.svg)](http://package.elm-lang.org/packages/ktonon/elm-jsonwebtoken/latest)
 [![CircleCI](https://img.shields.io/circleci/project/github/ktonon/elm-jsonwebtoken.svg)](https://circleci.com/gh/ktonon/elm-jsonwebtoken)
 
 JSON Web Token encoder and decoder.
