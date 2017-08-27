@@ -50,7 +50,7 @@ Examples below assume the following imports
 
 import Crypto.HMAC
 import Json.Decode as Decode exposing (Decoder, decodeString)
-import Json.Decode.Pipeline as Pipeline exposing (required)
+import Json.Decode.Pipeline as Pipeline exposing (optional, required)
 import Json.Encode as Encode
 import JsonWebToken.Base64 as Base64
 import JsonWebToken.HMAC as HMAC exposing (HashType(..))
@@ -284,7 +284,7 @@ encodeHeader (HMAC hashType) =
 headerDecoder : Decoder Header
 headerDecoder =
     Pipeline.decode Header
-        |> required "typ" typDecoder
+        |> optional "typ" typDecoder JWT
         |> required "alg" algDecoder
 
 
