@@ -1,33 +1,11 @@
-module JsonWebToken
-    exposing
-        ( Alg
-        , DecodeError(..)
-        , Secret
-        , Token
-        , algDecoder
-        , decode
-        , encode
-        , hmacSha224
-        , hmacSha256
-        , hmacSha384
-        , hmacSha512
-        )
+module JsonWebToken exposing
+    ( decode, encode
+    , hmacSha224, hmacSha256, hmacSha384, hmacSha512
+    , DecodeError(..)
+    , Alg, Secret, Token, algDecoder
+    )
 
 {-| JSON Web Token encoder and decoder.
-
-Examples below assume the following imports
-
-    import Json.Decode
-    import Json.Encode
-    import TestHelpers
-        exposing
-            ( aValidToken
-            , correctSecret
-            , encodePayload
-            , payload
-            , payloadDecoder
-            , wrongSecret
-            )
 
 @docs decode, encode
 
@@ -49,7 +27,7 @@ Examples below assume the following imports
 -}
 
 import Crypto.HMAC
-import Json.Decode as Decode exposing (Decoder, decodeString)
+import Json.Decode as Decode exposing (Decoder, decodeString, errorToString)
 import Json.Decode.Pipeline as Pipeline exposing (optional, required)
 import Json.Encode as Encode
 import JsonWebToken.Base64 as Base64
@@ -57,6 +35,18 @@ import JsonWebToken.HMAC as HMAC exposing (HashType(..))
 
 
 {-| Verify a token given a secret or public key.
+
+    import Json.Decode
+    import Json.Encode
+    import TestHelpers
+        exposing
+            ( aValidToken
+            , correctSecret
+            , encodePayload
+            , payload
+            , payloadDecoder
+            , wrongSecret
+            )
 
 If all goes well, you'll get a result back with the payload.
 
@@ -99,6 +89,18 @@ decode payloadDecoder secret token =
 
 {-| Create and sign a token.
 
+    import Json.Decode
+    import Json.Encode
+    import TestHelpers
+        exposing
+            ( aValidToken
+            , correctSecret
+            , encodePayload
+            , payload
+            , payloadDecoder
+            , wrongSecret
+            )
+
     encode hmacSha256 encodePayload correctSecret payload
     --> aValidToken
 
@@ -106,9 +108,9 @@ decode payloadDecoder secret token =
         |> (decode Json.Decode.string "other secret")
     --> Ok "some payload"
 
-    encode hmacSha224 Json.Encode.int "123" 456
+    encode hmacSha224 Json.Encode.int "123" 4561
         |> (decode Json.Decode.int "abc")
-    --> Err <| InvalidSecret 456
+    --> Err <| InvalidSecret 4561
 
 -}
 encode :
@@ -149,10 +151,12 @@ verify :
 verify key signVar payload input { alg } =
     case alg of
         HMAC hash ->
-            sign hash key input
+            input
+                |> sign hash key
                 |> (\actual ->
                         if actual == signVar then
                             Ok payload
+
                         else
                             Err <| InvalidSecret payload
                    )
@@ -210,13 +214,13 @@ type DecodeError payload
 decodeHeader : String -> Result String Header
 decodeHeader header =
     Base64.decode header
-        |> Result.andThen (decodeString headerDecoder)
+        |> Result.andThen (decodeString headerDecoder >> Result.mapError errorToString)
 
 
 decodePayload : Decoder payload -> String -> Result String payload
 decodePayload payloadDecoder payload =
     Base64.decode payload
-        |> Result.andThen (decodeString payloadDecoder)
+        |> Result.andThen (decodeString payloadDecoder >> Result.mapError errorToString)
 
 
 sign : HMAC.HashType -> Secret -> String -> String
@@ -283,7 +287,7 @@ encodeHeader (HMAC hashType) =
 
 headerDecoder : Decoder Header
 headerDecoder =
-    Pipeline.decode Header
+    Decode.succeed Header
         |> optional "typ" typDecoder JWT
         |> required "alg" algDecoder
 
@@ -306,6 +310,7 @@ typDecoder =
             (\w ->
                 if w == "JWT" then
                     Decode.succeed JWT
+
                 else
                     Decode.fail "typ is not JWT"
             )

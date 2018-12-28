@@ -10,31 +10,24 @@ import Word.Hex as Hex
 
 encode : String -> String
 encode =
-    urlEncode
-        (Bytes.fromUTF8
-            >> Base64.encode
-        )
+    urlEncode (Bytes.fromUTF8 >> Base64.encode)
 
 
 encodeHex : String -> String
 encodeHex =
-    urlEncode
-        (Hex.toByteList
-            >> Base64.encode
-        )
+    urlEncode (Hex.toByteList >> Base64.encode)
 
 
 decode : String -> Result String String
 decode =
-    UrlBase64.decode
-        (Base64.decode >> Result.andThen UTF8.toString)
+    UrlBase64.decode (Base64.decode >> Result.andThen UTF8.toString)
 
 
 
 -- URL
 
 
-urlEncode : (a -> String) -> a -> String
+urlEncode : (a -> Result String String) -> a -> String
 urlEncode enc t =
     let
         replaceChar { match } =
@@ -49,9 +42,11 @@ urlEncode enc t =
                     ""
     in
     enc t
-        |> Regex.replace Regex.All replaceForUrl replaceChar
+        |> Result.withDefault ""
+        |> Regex.replace replaceForUrl replaceChar
 
 
 replaceForUrl : Regex
 replaceForUrl =
-    Regex.regex "[\\+/=]"
+    Regex.fromString "[\\+/]"
+        |> Maybe.withDefault Regex.never

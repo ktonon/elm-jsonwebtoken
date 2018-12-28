@@ -49,4 +49,4 @@ all =
 -}
 tokenWithoutTyp : String
 tokenWithoutTyp =
-    "eyJhbGciOiJIUzI1NiJ9.InBheWxvYWQi.xZ3HN7F1t9dBMbKCXa9pye1VW6wC2A7V93Pva5jpkpI"
+    "eyJhbGciOiJIUzI1NiJ9.InBheWxvYWQi.xZ3HN7F1t9dBMbKCXa9pye1VW6wC2A7V93Pva5jpkpI="
