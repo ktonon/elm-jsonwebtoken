@@ -108,9 +108,9 @@ decode payloadDecoder secret token =
         |> (decode Json.Decode.string "other secret")
     --> Ok "some payload"
 
-    encode hmacSha224 Json.Encode.int "123" 4561
+    encode hmacSha224 Json.Encode.int "123" 456
         |> (decode Json.Decode.int "abc")
-    --> Err <| InvalidSecret 4561
+    --> Err <| InvalidSecret 456
 
 -}
 encode :
