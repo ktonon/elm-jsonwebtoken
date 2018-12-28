@@ -1,13 +1,13 @@
-module TestHelpers exposing (..)
+module TestHelpers exposing (Payload, aValidToken, correctSecret, encodePayload, payload, payloadDecoder, wrongSecret)
 
 import Json.Decode as Decode exposing (Decoder, decodeString)
-import Json.Decode.Pipeline exposing (decode, required)
+import Json.Decode.Pipeline as Pipeline exposing (required)
 import Json.Encode as Encode
 
 
 aValidToken : String
 aValidToken =
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZXN0IjoicGF5bG9hZCIsImlhdCI6MTUwMjc0MDYyN30.R6kJENnhgPQ-FJ63otxV8ZHB9usQR-Byt4lKUe8Rw6Y"
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0ZXN0IjoicGF5bG9hZCIsImlhdCI6MTUwMjc0MDYyN30=.aRRyq2PDaMD6lsFXJn53cCKPk83LL5hH9k_g71WGzUM="
 
 
 correctSecret : String
@@ -33,7 +33,7 @@ payload =
 
 payloadDecoder : Decoder Payload
 payloadDecoder =
-    decode Payload
+    Decode.succeed Payload
         |> required "test" Decode.string
         |> required "iat" Decode.int
 
