@@ -20,7 +20,7 @@ encodeHex =
 
 decode : String -> Result String String
 decode =
-    UrlBase64.decode (Base64.decode >> Result.andThen UTF8.toString)
+    includeBase64Padding >> UrlBase64.decode (Base64.decode >> Result.andThen UTF8.toString)
 
 
 
@@ -48,5 +48,18 @@ urlEncode enc t =
 
 replaceForUrl : Regex
 replaceForUrl =
-    Regex.fromString "[\\+/]"
+    Regex.fromString "[\\+=/]"
         |> Maybe.withDefault Regex.never
+
+
+
+-- Omission of Padding
+
+
+includeBase64Padding : String -> String
+includeBase64Padding text =
+    let
+        paddedByteLength =
+            modBy 4 (String.length text)
+    in
+    text ++ String.fromList (List.repeat paddedByteLength '=')
