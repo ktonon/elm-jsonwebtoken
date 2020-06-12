@@ -20,7 +20,7 @@ encodeHex =
 
 decode : String -> Result String String
 decode =
-    includeBase64Padding >> UrlBase64.decode (Base64.decode >> Result.andThen UTF8.toString)
+    includeBase64Padding >> Result.andThen (UrlBase64.decode (Base64.decode >> Result.andThen UTF8.toString))
 
 
 
@@ -52,14 +52,17 @@ replaceForUrl =
         |> Maybe.withDefault Regex.never
 
 
-
--- Omission of Padding
-
-
-includeBase64Padding : String -> String
+includeBase64Padding : String -> Result String String
 includeBase64Padding text =
-    let
-        paddedByteLength =
-            modBy 4 (String.length text)
-    in
-    text ++ String.fromList (List.repeat paddedByteLength '=')
+    case modBy 4 (String.length text) of
+        0 ->
+            Ok text
+
+        2 ->
+            Ok (text ++ "==")
+
+        3 ->
+            Ok (text ++ "=")
+
+        _ ->
+            Err "Illegal base64url string!"
